@@ -33,3 +33,7 @@ Run `npm test` to exercise the unit tests covering all three.
 ## Encryption at rest (`lib/crypto/encrypt.ts`)
 
 Hosted-mode `auth_header` values are encrypted before hitting `apis.auth_header_enc` (AES-256-GCM, random IV per call, stored as `iv || authTag || ciphertext`). The key comes from `AUTH_HEADER_ENCRYPTION_KEY` — generate one with `openssl rand -hex 32` and never commit it. Self-hosted mode never touches this path at all: those credentials stay in the user's own GitHub Actions secrets.
+
+## Alerts and LLM summaries
+
+`lib/alerts/slack.ts` and `lib/alerts/discord.ts` both take a `DriftAlert` (`lib/alerts/types.ts`) and post to a user-supplied webhook — Slack gets Block Kit, Discord gets an embed, both share the same `formatDriftLine` bullet formatting. `lib/llm-summary/summarize.ts` turns the raw diff into one plain-English sentence via whichever free-tier provider has a key set (`GROQ_API_KEY` preferred, `GEMINI_API_KEY` as fallback); it swallows provider failures and returns `undefined` rather than throwing, since a missing summary should never block an alert from firing — the caller just falls back to the raw diff in that case.
