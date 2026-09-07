@@ -74,3 +74,18 @@ Note: after adding a new dynamic route file, run `npx next typegen` before type-
 ## Contract-health badge (`GET /api/badge/[id]`)
 
 Public by design — no auth, meant to be dropped straight into a public README (`![status](https://yourapp.vercel.app/api/badge/<api-id>)`) as a passive acquisition channel. `lib/badge/status.ts` (`computeBadgeState`) is pure and unit-tested on its own: red "drifting" if any endpoint's last status isn't `ok`, otherwise green "stable Nd" counted from the most recent non-ok run (or the very first run ever, if it's never drifted), gray "no data" before the first check. `lib/badge/render.ts` hand-renders the shields.io-style flat SVG, no dependency needed.
+
+## Self-hosted checker CLI (`packages/checker-agent`)
+
+Published as `api-drift-check` — the core trust differentiator: it runs on the user's own GitHub Actions minutes, with their own repo secrets, and never sends their credentials anywhere. Only a diff result crosses the network.
+
+```
+npx api-drift-check init --base-url https://api.example.com --ingest-url https://yourapp.vercel.app/api/ingest \
+  --spec-mode baseline --endpoints "GET:/users/1,GET:/orders"
+```
+
+writes `.api-drift-check.json` (non-secret settings only — the webhook token is deliberately never written to a file that could end up committed) and `.github/workflows/api-drift-check.yml`. The workflow reads the token from a `API_DRIFT_WEBHOOK_TOKEN` repo secret the user adds by hand, and calls `npx api-drift-check run` on a schedule.
+
+`run` (`src/checks.ts`) supports all three spec modes: `openapi` extracts endpoints and diffs live responses against the spec fetched fresh each run; `baseline` learns a schema from the first 5 samples of each configured endpoint and diffs against it on subsequent runs; `mcp` snapshots and diffs the server's `tools/list` response. Baseline and MCP state persists across runs via `.api-drift-check-state.json`, which the generated workflow restores/saves with `actions/cache` — a stateless runner otherwise has nothing to diff against on the next run. A non-`ok` result exits the process with a non-zero code, so drift shows up as a failed Actions run, not just an alert someone might have muted.
+
+The package's own `src/*.ts` imports the shared diffing logic directly from the root `lib/drift/` and reuses the `RawCheckResult` type from `lib/checks/process-check-result.ts` (type-only, so no runtime dependency) — one npm workspace, one source of truth for what counts as drift. `npm run build` (tsup) bundles those shared modules straight into `dist/index.js`, so the published package is fully self-contained despite importing across the monorepo at the source level; verified by building and running `dist/index.js --help` directly with no workspace context.

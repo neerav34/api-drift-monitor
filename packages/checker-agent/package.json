@@ -1,0 +1,30 @@
+{
+  "name": "api-drift-check",
+  "version": "0.1.0",
+  "description": "Self-hosted checker for API Drift Monitor -- runs in your own CI, diffs your live API against its spec, and posts only the pass/fail result (never credentials) to your dashboard.",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "api-drift-check": "./dist/index.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup src/index.ts --format esm --target node18 --clean",
+    "dev": "tsx src/index.ts",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@apidevtools/swagger-parser": "^13.0.0",
+    "ajv": "^8.20.0",
+    "ajv-formats": "^3.0.1",
+    "commander": "^15.0.0"
+  },
+  "devDependencies": {
+    "tsup": "^8.3.5",
+    "tsx": "^4.23.13",
+    "typescript": "^5",
+    "vitest": "^3.2.7"
+  }
+}

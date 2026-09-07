@@ -1,6 +1,7 @@
 import { diffResponseAgainstSchema } from "@/lib/drift/diff";
 import { getResponseSchema } from "@/lib/drift/openapi";
 import { decryptAuthHeader } from "@/lib/crypto/encrypt";
+import { buildEndpointUrl } from "@/lib/http/build-url";
 import type { RawCheckResult } from "./process-check-result";
 
 export interface EndpointToCheck {
@@ -34,7 +35,7 @@ export async function runHostedCheck(
     );
   }
 
-  const url = buildUrl(api.base_url, endpoint.path);
+  const url = buildEndpointUrl(api.base_url, endpoint.path);
   const headers = api.auth_header_enc ? decodeAuthHeader(api.auth_header_enc) : {};
 
   const startedAt = Date.now();
@@ -92,12 +93,6 @@ async function safeJson(response: Response): Promise<unknown> {
   } catch {
     return undefined;
   }
-}
-
-function buildUrl(baseUrl: string, path: string): string {
-  const base = baseUrl.replace(/\/+$/, "");
-  const filled = path.replace(/\{[^}]+\}/g, "1");
-  return `${base}${filled.startsWith("/") ? "" : "/"}${filled}`;
 }
 
 function decodeAuthHeader(pgBytea: string): Record<string, string> {

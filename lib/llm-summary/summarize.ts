@@ -63,7 +63,9 @@ async function callGroq(prompt: string): Promise<string | undefined> {
     }),
   });
   if (!res.ok) throw new Error(`Groq request failed: ${res.status}`);
-  const data = await res.json();
+  const data = (await res.json()) as {
+    choices?: Array<{ message?: { content?: string } }>;
+  };
   return data.choices?.[0]?.message?.content?.trim();
 }
 
@@ -79,6 +81,8 @@ async function callGemini(prompt: string): Promise<string | undefined> {
     }
   );
   if (!res.ok) throw new Error(`Gemini request failed: ${res.status}`);
-  const data = await res.json();
+  const data = (await res.json()) as {
+    candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+  };
   return data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
 }
