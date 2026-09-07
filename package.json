@@ -13,6 +13,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@supabase/ssr": "^0.12.6",
     "@supabase/supabase-js": "^2.115.0",
     "ajv": "^8.20.0",
     "ajv-formats": "^3.0.1",
