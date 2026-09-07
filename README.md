@@ -70,3 +70,7 @@ Session-authenticated (RLS-scoped, so a user only ever sees their own rows):
 - `POST /api/apis/[id]/check` — the manual "Check Now" button, hosted mode only (self-hosted APIs have no server-side credentials to check with — their next result comes from the user's own scheduled CI run). Runs `runHostedCheck` over every non-mutating endpoint and feeds each result through `processCheckResult`.
 
 Note: after adding a new dynamic route file, run `npx next typegen` before type-checking — the `RouteContext<'/api/apis/[id]'>` helper types are generated from the route manifest and won't recognize a brand-new route until then.
+
+## Contract-health badge (`GET /api/badge/[id]`)
+
+Public by design — no auth, meant to be dropped straight into a public README (`![status](https://yourapp.vercel.app/api/badge/<api-id>)`) as a passive acquisition channel. `lib/badge/status.ts` (`computeBadgeState`) is pure and unit-tested on its own: red "drifting" if any endpoint's last status isn't `ok`, otherwise green "stable Nd" counted from the most recent non-ok run (or the very first run ever, if it's never drifted), gray "no data" before the first check. `lib/badge/render.ts` hand-renders the shields.io-style flat SVG, no dependency needed.
