@@ -52,3 +52,11 @@ The one endpoint self-hosted checkers talk to. Auth is a per-API `webhook_token`
 4. Bumps `apis.last_seen_at`, which is what powers the dead-man's-switch.
 
 This same `processCheckResult` function is meant to be reused by the hosted-mode batch checker and the manual "Check Now" button, so the behavior can't diverge between the three call sites.
+
+## Hosted-mode checking (`lib/checks/run-hosted-check.ts`, `lib/drift/openapi.ts`)
+
+`runHostedCheck(api, endpoint)` performs one live GET/HEAD request server-side and diffs the response against, in order: the endpoint's learned `baseline_schema`, or — for `spec_mode: "openapi"` — the response schema pulled live from the spec via `getResponseSchema`. It refuses (throws) if handed a mutating endpoint, since the safe-method-default guardrail means callers must filter those out first rather than this function silently downgrading a caller bug into a skipped check. `extractEndpointsFromSpec` walks an OpenAPI document to populate `endpoints` when an API is added in hosted mode with a spec URL, so they don't need to be entered by hand.
+
+Note: hosted-mode MCP checking (`spec_mode: "mcp"`) isn't wired up yet — MCP monitoring currently only works through the self-hosted `api-drift-check` CLI, which is where it naturally lives anyway (most MCP servers run locally in dev, not behind a public URL a hosted checker could reach).
+
+We depend on `@apidevtools/swagger-parser` directly rather than the `swagger-parser` npm shim — the shim's re-exported types don't resolve under this project's `moduleResolution: bundler`, and it wraps the same package anyway.
