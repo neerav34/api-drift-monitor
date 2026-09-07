@@ -1,0 +1,30 @@
+name: Hosted API Checks
+
+# Runs on OUR OWN GitHub Actions minutes -- this covers only APIs added in
+# hosted mode. Self-hosted APIs are checked by a workflow in the user's own
+# repo (scaffolded by `npx api-drift-check init`), on their own minutes.
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch: {}
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Check all active hosted-mode APIs
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          AUTH_HEADER_ENCRYPTION_KEY: ${{ secrets.AUTH_HEADER_ENCRYPTION_KEY }}
+          GITHUB_APP_TOKEN: ${{ secrets.GITHUB_APP_TOKEN }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          NEXT_PUBLIC_DASHBOARD_URL: ${{ vars.NEXT_PUBLIC_DASHBOARD_URL }}
+        run: npm run check:hosted

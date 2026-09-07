@@ -18,6 +18,7 @@ create table if not exists apis (
   github_repo        text,                                 -- optional, enables deploy correlation
   is_active          boolean not null default true,
   last_seen_at       timestamptz,                          -- updated on every incoming result, powers dead-man's-switch
+  last_dead_mans_alert_at timestamptz,                      -- throttles the dead-man's-switch alert to once/day
   created_at         timestamptz not null default now()
 );
 

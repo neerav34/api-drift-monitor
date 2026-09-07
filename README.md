@@ -89,3 +89,14 @@ writes `.api-drift-check.json` (non-secret settings only — the webhook token i
 `run` (`src/checks.ts`) supports all three spec modes: `openapi` extracts endpoints and diffs live responses against the spec fetched fresh each run; `baseline` learns a schema from the first 5 samples of each configured endpoint and diffs against it on subsequent runs; `mcp` snapshots and diffs the server's `tools/list` response. Baseline and MCP state persists across runs via `.api-drift-check-state.json`, which the generated workflow restores/saves with `actions/cache` — a stateless runner otherwise has nothing to diff against on the next run. A non-`ok` result exits the process with a non-zero code, so drift shows up as a failed Actions run, not just an alert someone might have muted.
 
 The package's own `src/*.ts` imports the shared diffing logic directly from the root `lib/drift/` and reuses the `RawCheckResult` type from `lib/checks/process-check-result.ts` (type-only, so no runtime dependency) — one npm workspace, one source of truth for what counts as drift. `npm run build` (tsup) bundles those shared modules straight into `dist/index.js`, so the published package is fully self-contained despite importing across the monorepo at the source level; verified by building and running `dist/index.js --help` directly with no workspace context.
+
+## Hosted-mode batch checker and dead-man's-switch (`scripts/check-all-apis.ts`, `.github/workflows/check-apis.yml`)
+
+Runs on *our own* GitHub Actions minutes (every 15 minutes) and covers exactly two things:
+
+1. **Hosted-mode live checks** — for each active hosted, non-MCP API whose `check_interval` has actually elapsed since `last_seen_at` (the 15-minute cron is just the outer poll; each API's own interval decides whether it's due), runs `runHostedCheck` over its non-mutating endpoints and feeds each result through `processCheckResult` — the same function `/api/ingest` and the manual check button use.
+2. **Dead-man's-switch** — for *every* active API regardless of mode (a self-hosted checker can go quiet just as silently as a hosted one), fires `sendDeadMansSwitchAlert` once `last_seen_at` is more than 2× `check_interval` overdue, throttled to at most one alert per day per API via a new `apis.last_dead_mans_alert_at` column. A brand-new API has `last_seen_at` seeded to its creation time (not left `null`) specifically so this can't fire before the API has ever had a chance to report in.
+
+`lib/checks/parse-interval.ts` parses `apis.check_interval` (e.g. `"1 hour"`, `"30 minutes"`) into milliseconds for both of the above. `createServiceRoleClient` was split out of `lib/supabase/server.ts` into its own `lib/supabase/service-role.ts` with no `next/headers` import, so this standalone script (run via plain `tsx`, not the Next.js runtime) doesn't pull in anything that assumes a request context.
+
+Run locally with `npm run check:hosted`.

@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
-import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
+
+export { createServiceRoleClient } from "./service-role";
 
 // Session-aware client for use in Server Components / Route Handlers on
 // behalf of the signed-in user. Respects RLS.
@@ -27,17 +28,5 @@ export async function createClient() {
         },
       },
     }
-  );
-}
-
-// Service-role client that bypasses RLS entirely. Only for trusted
-// server-side paths: the self-hosted ingest endpoint (authenticated via
-// webhook_token instead of a user session) and the hosted-mode batch
-// checker. Never import this into anything reachable from the browser.
-export function createServiceRoleClient() {
-  return createSupabaseClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { persistSession: false } }
   );
 }

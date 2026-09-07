@@ -61,6 +61,10 @@ export async function POST(request: Request) {
     check_interval: body.check_interval ?? "1 hour",
     alert_webhook: body.alert_webhook ?? null,
     github_repo: body.github_repo ?? null,
+    // Seeded to now rather than left null -- otherwise the dead-man's-switch
+    // check treats a brand-new, never-yet-checked API as having gone silent
+    // since the epoch and fires an alert before it's had a chance to report in.
+    last_seen_at: new Date().toISOString(),
   };
 
   if (checkMode === "hosted" && body.auth_header) {
