@@ -62,6 +62,12 @@ create index if not exists idx_check_runs_checked_at on check_runs(checked_at de
 create index if not exists idx_apis_user_id on apis(user_id);
 create index if not exists idx_drift_ignores_endpoint_id on drift_ignores(endpoint_id);
 
+-- Ingest upserts on (api_id, path, method) -- self-hosted checkers and the
+-- hosted batch checker both discover endpoints as results come in rather
+-- than requiring them to be pre-registered from a spec, so this constraint
+-- is what makes that upsert race-safe instead of just best-effort.
+create unique index if not exists idx_endpoints_api_path_method on endpoints(api_id, path, method);
+
 -- Row Level Security: users can only see/manage their own APIs and everything
 -- that hangs off them. The service-role key (used by the ingest endpoint and
 -- hosted-mode checker) bypasses RLS entirely, which is why webhook_token auth

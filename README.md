@@ -41,3 +41,14 @@ Hosted-mode `auth_header` values are encrypted before hitting `apis.auth_header_
 ## Deploy correlation (`lib/deploy-correlation/github.ts`)
 
 When an API has `github_repo` set, `findNearestCommit(repo, before, token?)` queries `GET /repos/{owner}/{repo}/commits?until=...` and returns the most recent commit before the drift timestamp, so an alert can say "likely caused by commit `a1b2c3d: refactor user serializer`" instead of just reporting the symptom. `GITHUB_APP_TOKEN` lifts GitHub's rate limit from 60/hr to 5,000/hr — comfortable at any early-stage volume.
+
+## Ingest (`app/api/ingest/route.ts`)
+
+The one endpoint self-hosted checkers talk to. Auth is a per-API `webhook_token` sent as `Authorization: Bearer <token>` — not a Supabase session, since the checker running in someone else's CI never logs in. The route looks up the API by token, then hands each result in the POST body to `lib/checks/process-check-result.ts`, which:
+
+1. Upserts the `endpoints` row for `(api_id, path, method)` — endpoints don't need to be pre-registered from a spec; they're discovered as results come in. A unique index (`idx_endpoints_api_path_method`) makes this upsert race-safe.
+2. Re-applies `drift_ignores` server-side via `filterDrift` and recomputes the final status — this runs centrally here (not in the checker) so toggling "ignore this field" in the dashboard takes effect immediately, regardless of where the check ran.
+3. On drift: looks up deploy correlation and an LLM summary, writes the `check_runs` row, updates the endpoint's last-known status, and fires a Slack/Discord alert (picked by webhook URL) if one drifted.
+4. Bumps `apis.last_seen_at`, which is what powers the dead-man's-switch.
+
+This same `processCheckResult` function is meant to be reused by the hosted-mode batch checker and the manual "Check Now" button, so the behavior can't diverge between the three call sites.

@@ -30,17 +30,22 @@ export function diffResponseAgainstSchema(
 ): DiffResult {
   const validate = ajv.compile(schema);
   const valid = validate(data);
-  const ignored = new Set(ignoredFields);
-  const drift: DriftItem[] = [];
-
-  if (!valid) {
-    for (const err of validate.errors ?? []) {
-      const item = toDriftItem(err, data);
-      if (!ignored.has(item.field)) drift.push(item);
-    }
-  }
+  const rawDrift = valid ? [] : (validate.errors ?? []).map((err) => toDriftItem(err, data));
+  const drift = filterDrift(rawDrift, ignoredFields);
 
   return { status: drift.length > 0 ? "drift" : "ok", drift };
+}
+
+/**
+ * Drops drift items whose field path is in `ignoredFields`. Exported
+ * separately so the ingest endpoint can re-apply the noise filter
+ * server-side against whatever raw drift a checker (self-hosted or hosted)
+ * reports, without re-running ajv -- the ignore list lives in the DB, which
+ * a self-hosted checker running in someone else's CI has no access to.
+ */
+export function filterDrift(items: DriftItem[], ignoredFields: string[] = []): DriftItem[] {
+  const ignored = new Set(ignoredFields);
+  return items.filter((item) => !ignored.has(item.field));
 }
 
 function toDriftItem(err: ErrorObject, data: unknown): DriftItem {
