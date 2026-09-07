@@ -100,3 +100,17 @@ Runs on *our own* GitHub Actions minutes (every 15 minutes) and covers exactly t
 `lib/checks/parse-interval.ts` parses `apis.check_interval` (e.g. `"1 hour"`, `"30 minutes"`) into milliseconds for both of the above. `createServiceRoleClient` was split out of `lib/supabase/server.ts` into its own `lib/supabase/service-role.ts` with no `next/headers` import, so this standalone script (run via plain `tsx`, not the Next.js runtime) doesn't pull in anything that assumes a request context.
 
 Run locally with `npm run check:hosted`.
+
+## Dashboard
+
+Plain Tailwind, no component library — kept the scaffold's existing setup rather than adding shadcn/ui for this pass.
+
+- `/` — landing page explaining the self-hosted-by-default trust model (per the guide's phase 4.2), `/login`, `/signup` — Supabase email/password auth (`components/auth-form.tsx`).
+- `app/dashboard/layout.tsx` — server-side auth guard (redirects to `/login`) plus nav; every page under it assumes a signed-in user.
+- `/dashboard` — lists the user's APIs with a green/red/gray `StatusPill` computed from each API's endpoints' `last_status`.
+- `/dashboard/apis/new` — add-API form; self-hosted mode is the default per the guide's trust model, hosted-only fields (auth header) only appear once hosted mode is selected.
+- `/dashboard/apis/[id]` — endpoint list with per-field drift details and an `IgnoreFieldButton` (the noise-filter allowlist button from the guide's folder structure) that POSTs to `/api/endpoints/[id]/ignore`; the self-hosted setup snippet (init command + webhook token) or a hosted-mode `CheckNowButton`, whichever mode applies; and a copyable badge markdown snippet.
+
+All data fetching on these pages goes straight through the session-scoped Supabase server client (RLS-enforced), not through `/api/apis` — that REST surface exists for the CLI and for anyone building against the API directly, not as a proxy the dashboard has to round-trip through itself.
+
+Verified end-to-end in a real browser (Puppeteer): landing/login/signup render with no console errors, and hitting an authenticated-only route while signed out redirects to `/login` as expected. Full authenticated-flow verification (sign up, add an API, see real check results) needs a real Supabase project, which is out of scope for this session.

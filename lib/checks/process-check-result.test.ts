@@ -17,7 +17,7 @@ function createFakeSupabase(seed: Record<string, Record<string, unknown>[]> = {}
   let idCounter = 1;
 
   function from(table: string) {
-    let filters: Array<[string, unknown]> = [];
+    const filters: Array<[string, unknown]> = [];
     let mode: "select" | "insert" | "update" = "select";
     let payload: Record<string, unknown> | undefined;
 
