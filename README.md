@@ -37,3 +37,7 @@ Hosted-mode `auth_header` values are encrypted before hitting `apis.auth_header_
 ## Alerts and LLM summaries
 
 `lib/alerts/slack.ts` and `lib/alerts/discord.ts` both take a `DriftAlert` (`lib/alerts/types.ts`) and post to a user-supplied webhook — Slack gets Block Kit, Discord gets an embed, both share the same `formatDriftLine` bullet formatting. `lib/llm-summary/summarize.ts` turns the raw diff into one plain-English sentence via whichever free-tier provider has a key set (`GROQ_API_KEY` preferred, `GEMINI_API_KEY` as fallback); it swallows provider failures and returns `undefined` rather than throwing, since a missing summary should never block an alert from firing — the caller just falls back to the raw diff in that case.
+
+## Deploy correlation (`lib/deploy-correlation/github.ts`)
+
+When an API has `github_repo` set, `findNearestCommit(repo, before, token?)` queries `GET /repos/{owner}/{repo}/commits?until=...` and returns the most recent commit before the drift timestamp, so an alert can say "likely caused by commit `a1b2c3d: refactor user serializer`" instead of just reporting the symptom. `GITHUB_APP_TOKEN` lifts GitHub's rate limit from 60/hr to 5,000/hr — comfortable at any early-stage volume.
