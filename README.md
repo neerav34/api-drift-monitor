@@ -60,3 +60,13 @@ This same `processCheckResult` function is meant to be reused by the hosted-mode
 Note: hosted-mode MCP checking (`spec_mode: "mcp"`) isn't wired up yet — MCP monitoring currently only works through the self-hosted `api-drift-check` CLI, which is where it naturally lives anyway (most MCP servers run locally in dev, not behind a public URL a hosted checker could reach).
 
 We depend on `@apidevtools/swagger-parser` directly rather than the `swagger-parser` npm shim — the shim's re-exported types don't resolve under this project's `moduleResolution: bundler`, and it wraps the same package anyway.
+
+## API CRUD (`app/api/apis/`)
+
+Session-authenticated (RLS-scoped, so a user only ever sees their own rows):
+
+- `GET /api/apis` / `POST /api/apis` — list, and create an API. Creating one always generates a `webhook_token`; if it's hosted mode with a plaintext `auth_header` in the body, that gets encrypted before it ever touches a row. Hosted + OpenAPI + a spec URL also extracts endpoints from the spec immediately via `extractEndpointsFromSpec`, so there's something to check before any live result comes in. Self-hosted mode skips that — endpoints show up as ingest results arrive instead, since the checker (not the dashboard) is the one with spec access there.
+- `GET /api/apis/[id]` / `PATCH /api/apis/[id]` / `DELETE /api/apis/[id]` — single-API read/update/delete, plus its endpoint list.
+- `POST /api/apis/[id]/check` — the manual "Check Now" button, hosted mode only (self-hosted APIs have no server-side credentials to check with — their next result comes from the user's own scheduled CI run). Runs `runHostedCheck` over every non-mutating endpoint and feeds each result through `processCheckResult`.
+
+Note: after adding a new dynamic route file, run `npx next typegen` before type-checking — the `RouteContext<'/api/apis/[id]'>` helper types are generated from the route manifest and won't recognize a brand-new route until then.
