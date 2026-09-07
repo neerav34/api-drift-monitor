@@ -29,3 +29,7 @@ The diffing logic is shared between the dashboard's hosted-mode checker and the 
 - `mcp-diff.ts` — `diffMcpSnapshots(previous, current)` diffs two `tools/list` snapshots from an MCP server: added/removed tools, added/removed/retyped params, and required-ness flips.
 
 Run `npm test` to exercise the unit tests covering all three.
+
+## Encryption at rest (`lib/crypto/encrypt.ts`)
+
+Hosted-mode `auth_header` values are encrypted before hitting `apis.auth_header_enc` (AES-256-GCM, random IV per call, stored as `iv || authTag || ciphertext`). The key comes from `AUTH_HEADER_ENCRYPTION_KEY` — generate one with `openssl rand -hex 32` and never commit it. Self-hosted mode never touches this path at all: those credentials stay in the user's own GitHub Actions secrets.
