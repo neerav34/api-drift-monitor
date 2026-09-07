@@ -19,3 +19,13 @@ Schema lives in [`supabase/schema.sql`](supabase/schema.sql). Apply it to a Supa
 ## Auth
 
 `lib/supabase/client.ts` is for Client Components, `lib/supabase/server.ts` for Server Components/Route Handlers (session-aware, respects RLS) and a separate `createServiceRoleClient()` for trusted server paths that must bypass RLS (the self-hosted ingest endpoint, the hosted-mode batch checker). `proxy.ts` (Next.js 16's renamed `middleware.ts`) refreshes the session cookie on every request except `/api/ingest` and `/api/badge`, which are unauthenticated by design.
+
+## Drift detection (`lib/drift/`)
+
+The diffing logic is shared between the dashboard's hosted-mode checker and the published `checker-agent` CLI — neither forks it.
+
+- `diff.ts` — `diffResponseAgainstSchema(schema, data, ignoredFields?)` runs an ajv validation and turns errors into `DriftItem[]` (`missing` / `wrongType` / `wrongFormat` / `invalid`), dropping anything whose dot-path is in `ignoredFields` (backed by the `drift_ignores` table).
+- `baseline.ts` — `learnBaselineSchema(samples)` infers a permissive schema from N sample responses for endpoints with no OpenAPI spec. A field is only `required` if every sample had it; unknown fields are always allowed.
+- `mcp-diff.ts` — `diffMcpSnapshots(previous, current)` diffs two `tools/list` snapshots from an MCP server: added/removed tools, added/removed/retyped params, and required-ness flips.
+
+Run `npm test` to exercise the unit tests covering all three.
