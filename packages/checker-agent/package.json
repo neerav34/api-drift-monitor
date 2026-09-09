@@ -3,6 +3,25 @@
   "version": "0.1.0",
   "description": "Self-hosted checker for API Drift Monitor -- runs in your own CI, diffs your live API against its spec, and posts only the pass/fail result (never credentials) to your dashboard.",
   "license": "MIT",
+  "author": "Neerav Jha",
+  "homepage": "https://api-drift-monitor.vercel.app",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/neerav34/api-drift-monitor.git",
+    "directory": "packages/checker-agent"
+  },
+  "bugs": {
+    "url": "https://github.com/neerav34/api-drift-monitor/issues"
+  },
+  "keywords": [
+    "api",
+    "openapi",
+    "mcp",
+    "contract-testing",
+    "drift-detection",
+    "monitoring",
+    "ci"
+  ],
   "type": "module",
   "bin": {
     "api-drift-check": "./dist/index.js"
