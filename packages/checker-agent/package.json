@@ -24,7 +24,7 @@
   ],
   "type": "module",
   "bin": {
-    "api-drift-check": "./dist/index.js"
+    "api-drift-check": "dist/index.js"
   },
   "files": [
     "dist"
