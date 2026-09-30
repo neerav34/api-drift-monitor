@@ -14,6 +14,7 @@ export default function NewApiPage() {
   const [specUrl, setSpecUrl] = useState("");
   const [checkMode, setCheckMode] = useState<CheckMode>("self_hosted");
   const [alertWebhook, setAlertWebhook] = useState("");
+  const [alertEmail, setAlertEmail] = useState("");
   const [githubRepo, setGithubRepo] = useState("");
   const [authHeader, setAuthHeader] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -34,6 +35,7 @@ export default function NewApiPage() {
         spec_url: specMode === "baseline" ? undefined : specUrl || undefined,
         check_mode: checkMode,
         alert_webhook: alertWebhook || undefined,
+        alert_email: alertEmail || undefined,
         github_repo: githubRepo || undefined,
         auth_header: checkMode === "hosted" ? authHeader || undefined : undefined,
       }),
@@ -147,6 +149,16 @@ export default function NewApiPage() {
             onChange={(e) => setAlertWebhook(e.target.value)}
             className={inputClass}
             placeholder="https://hooks.slack.com/services/..."
+          />
+        </Field>
+
+        <Field label="Alert email (optional, in addition to the webhook above)">
+          <input
+            type="email"
+            value={alertEmail}
+            onChange={(e) => setAlertEmail(e.target.value)}
+            className={inputClass}
+            placeholder="you@example.com"
           />
         </Field>
 

@@ -15,7 +15,7 @@ export async function POST(
 
   const { data: api, error: apiError } = await supabase
     .from("apis")
-    .select("id, name, base_url, spec_url, spec_mode, check_mode, auth_header_enc, github_repo, alert_webhook")
+    .select("id, name, base_url, spec_url, spec_mode, check_mode, auth_header_enc, github_repo, alert_webhook, alert_email")
     .eq("id", id)
     .maybeSingle();
 

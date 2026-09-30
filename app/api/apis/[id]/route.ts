@@ -7,6 +7,7 @@ interface UpdateApiBody {
   base_url?: string;
   spec_url?: string;
   alert_webhook?: string;
+  alert_email?: string;
   github_repo?: string;
   check_interval?: string;
   is_active?: boolean;
@@ -23,7 +24,7 @@ export async function GET(
   const { data: api, error } = await supabase
     .from("apis")
     .select(
-      "id, name, base_url, spec_url, spec_mode, check_mode, check_interval, alert_webhook, github_repo, is_active, last_seen_at, created_at, webhook_token"
+      "id, name, base_url, spec_url, spec_mode, check_mode, check_interval, alert_webhook, alert_email, github_repo, is_active, last_seen_at, created_at, webhook_token"
     )
     .eq("id", id)
     .maybeSingle();
@@ -59,6 +60,7 @@ export async function PATCH(
     "base_url",
     "spec_url",
     "alert_webhook",
+    "alert_email",
     "github_repo",
     "check_interval",
     "is_active",

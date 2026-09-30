@@ -12,6 +12,7 @@ interface CreateApiBody {
   check_mode?: "self_hosted" | "hosted";
   check_interval?: string;
   alert_webhook?: string;
+  alert_email?: string;
   github_repo?: string;
   auth_header?: string; // plaintext, hosted mode only -- encrypted before storage, never stored as-is
 }
@@ -60,6 +61,7 @@ export async function POST(request: Request) {
     webhook_token: randomBytes(24).toString("hex"),
     check_interval: body.check_interval ?? "1 hour",
     alert_webhook: body.alert_webhook ?? null,
+    alert_email: body.alert_email ?? null,
     github_repo: body.github_repo ?? null,
     // Seeded to now rather than left null -- otherwise the dead-man's-switch
     // check treats a brand-new, never-yet-checked API as having gone silent

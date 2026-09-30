@@ -130,3 +130,9 @@ Verified against real production data (QRDrop's signaling server, 19+ days of re
 Unauthenticated, read-only, `export const dynamic = "force-dynamic"` (otherwise Next.js would prerender it at build time and freeze the status/history as of the last deploy). Set `DEMO_API_ID` to a real API's id to showcase it — currently QRDrop's signaling server in production. Deliberately selects only non-secret columns (`id, name, base_url, check_mode, is_active` — never `webhook_token` or `auth_header_enc`), reuses `StatusPill` and `CheckHistoryChart` as-is, and shows a "no demo configured" message rather than crashing if the env var is unset. Linked from the landing page as "Live demo" / "See it live, no signup."
 
 Verified against real production data via Puppeteer: renders QRDrop's actual status and history with no console errors, no redirect, and no secret fields anywhere in the HTML.
+
+## Email alerts (`lib/alerts/email.ts`)
+
+`sendEmailAlert(toEmail, alert)` mirrors `slack.ts`/`discord.ts` exactly — same `DriftAlert` shape, same `formatDriftLine` bullets, via [Resend](https://resend.com) (free tier, no card needed). `apis.alert_email` is **additive**, not a replacement for `alert_webhook`: `processCheckResult` dispatches to whichever channels are configured, each in its own try/catch, so a Resend outage never blocks a Slack/Discord alert or vice versa. Defaults to Resend's own `onboarding@resend.dev` sender, which works with zero domain verification; override with `RESEND_FROM_EMAIL` once a verified sending domain exists.
+
+Verified with a real send (not just the mocked unit tests) — a live email through the actual Resend API arrived in a real inbox with the exact HTML shape `sendEmailAlert` produces.

@@ -4,6 +4,7 @@ import { findNearestCommit, formatCommitLabel } from "@/lib/deploy-correlation/g
 import { summarizeDrift } from "@/lib/llm-summary/summarize";
 import { sendSlackAlert } from "@/lib/alerts/slack";
 import { sendDiscordAlert } from "@/lib/alerts/discord";
+import { sendEmailAlert } from "@/lib/alerts/email";
 import type { DriftAlert } from "@/lib/alerts/types";
 
 export interface RawCheckResult {
@@ -20,6 +21,7 @@ export interface ApiForProcessing {
   name: string;
   github_repo: string | null;
   alert_webhook: string | null;
+  alert_email?: string | null;
 }
 
 const DASHBOARD_URL = process.env.NEXT_PUBLIC_DASHBOARD_URL ?? "http://localhost:3000";
@@ -98,7 +100,7 @@ export async function processCheckResult(
     })
     .eq("id", endpoint.id);
 
-  if ((finalStatus === "drift" || finalStatus === "error") && api.alert_webhook) {
+  if (finalStatus === "drift" || finalStatus === "error") {
     const alert: DriftAlert = {
       apiName: api.name,
       apiId: api.id,
@@ -109,14 +111,27 @@ export async function processCheckResult(
       driftDetails: filteredDrift,
       dashboardUrl: `${DASHBOARD_URL}/dashboard/apis/${api.id}`,
     };
-    try {
-      if (api.alert_webhook.includes("discord.com")) {
-        await sendDiscordAlert(api.alert_webhook, alert);
-      } else {
-        await sendSlackAlert(api.alert_webhook, alert);
+
+    // Independent channels: one failing (a bad webhook, a Resend outage)
+    // must never block the other from firing.
+    if (api.alert_webhook) {
+      try {
+        if (api.alert_webhook.includes("discord.com")) {
+          await sendDiscordAlert(api.alert_webhook, alert);
+        } else {
+          await sendSlackAlert(api.alert_webhook, alert);
+        }
+      } catch (err) {
+        console.error("Webhook alert delivery failed:", err);
       }
-    } catch (err) {
-      console.error("Alert delivery failed:", err);
+    }
+
+    if (api.alert_email) {
+      try {
+        await sendEmailAlert(api.alert_email, alert);
+      } catch (err) {
+        console.error("Email alert delivery failed:", err);
+      }
     }
   }
 

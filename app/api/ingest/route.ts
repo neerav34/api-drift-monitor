@@ -40,7 +40,7 @@ export async function POST(request: Request) {
 
   const { data: api, error } = await supabase
     .from("apis")
-    .select("id, name, github_repo, alert_webhook, is_active")
+    .select("id, name, github_repo, alert_webhook, alert_email, is_active")
     .eq("webhook_token", token)
     .maybeSingle();
 

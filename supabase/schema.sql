@@ -15,6 +15,7 @@ create table if not exists apis (
   webhook_token      text not null,                        -- used by self-hosted agent to authenticate results
   check_interval     text not null default '1 hour',
   alert_webhook      text,
+  alert_email        text,                                 -- additive alongside alert_webhook, not a replacement
   github_repo        text,                                 -- optional, enables deploy correlation
   is_active          boolean not null default true,
   last_seen_at       timestamptz,                          -- updated on every incoming result, powers dead-man's-switch
@@ -56,6 +57,11 @@ create table if not exists drift_ignores (
   created_at      timestamptz not null default now(),
   unique (endpoint_id, field_path)
 );
+
+-- Schema evolution for deployments that already exist (the CREATE TABLE
+-- above only helps a fresh install -- IF NOT EXISTS makes it a no-op once
+-- the table is already live with real data).
+alter table apis add column if not exists alert_email text;
 
 create index if not exists idx_endpoints_api_id on endpoints(api_id);
 create index if not exists idx_check_runs_endpoint_id on check_runs(endpoint_id);

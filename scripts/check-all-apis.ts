@@ -22,7 +22,7 @@ async function main() {
   const { data: apis, error } = await supabase
     .from("apis")
     .select(
-      "id, name, base_url, spec_url, spec_mode, check_mode, auth_header_enc, github_repo, alert_webhook, check_interval, last_seen_at, last_dead_mans_alert_at"
+      "id, name, base_url, spec_url, spec_mode, check_mode, auth_header_enc, github_repo, alert_webhook, alert_email, check_interval, last_seen_at, last_dead_mans_alert_at"
     )
     .eq("is_active", true);
 
