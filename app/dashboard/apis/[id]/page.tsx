@@ -4,6 +4,10 @@ import { StatusPill } from "@/components/status-pill";
 import { CheckNowButton } from "@/components/check-now-button";
 import { CopyableCode } from "@/components/copyable-code";
 import { IgnoreFieldButton } from "@/components/ignore-field-button";
+import { CheckHistoryChart } from "@/components/check-history-chart";
+import { buildDailyHistory } from "@/lib/history/daily-status";
+
+const HISTORY_DAYS = 30;
 
 interface DriftDetail {
   type: string;
@@ -24,6 +28,23 @@ export default async function ApiDetailPage(props: PageProps<"/dashboard/apis/[i
     .select("id, path, method, last_status, last_checked_at, last_drift_details")
     .eq("api_id", id)
     .order("path");
+
+  const endpointIds = (endpoints ?? []).map((e) => e.id);
+  const historyByEndpoint = new Map<string, ReturnType<typeof buildDailyHistory>>();
+  if (endpointIds.length > 0) {
+    const since = new Date();
+    since.setUTCDate(since.getUTCDate() - (HISTORY_DAYS - 1));
+    const { data: recentRuns } = await supabase
+      .from("check_runs")
+      .select("endpoint_id, status, checked_at")
+      .in("endpoint_id", endpointIds)
+      .gte("checked_at", since.toISOString());
+
+    for (const endpointId of endpointIds) {
+      const runsForEndpoint = (recentRuns ?? []).filter((r) => r.endpoint_id === endpointId);
+      historyByEndpoint.set(endpointId, buildDailyHistory(runsForEndpoint, HISTORY_DAYS));
+    }
+  }
 
   const dashboardUrl = process.env.NEXT_PUBLIC_DASHBOARD_URL ?? "http://localhost:3000";
   const badgeMarkdown = `![status](${dashboardUrl}/api/badge/${api.id})`;
@@ -112,6 +133,7 @@ export default async function ApiDetailPage(props: PageProps<"/dashboard/apis/[i
                       ))}
                     </ul>
                   )}
+                  <CheckHistoryChart buckets={historyByEndpoint.get(endpoint.id) ?? []} />
                 </li>
               );
             })}

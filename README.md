@@ -114,3 +114,13 @@ Plain Tailwind, no component library — kept the scaffold's existing setup rath
 All data fetching on these pages goes straight through the session-scoped Supabase server client (RLS-enforced), not through `/api/apis` — that REST surface exists for the CLI and for anyone building against the API directly, not as a proxy the dashboard has to round-trip through itself.
 
 Verified end-to-end in a real browser (Puppeteer): landing/login/signup render with no console errors, and hitting an authenticated-only route while signed out redirects to `/login` as expected. Full authenticated-flow verification (sign up, add an API, see real check results) needs a real Supabase project, which is out of scope for this session.
+
+## Check history chart (`lib/history/daily-status.ts`, `components/check-history-chart.tsx`)
+
+A per-endpoint, last-30-days status strip on the API detail page (one per endpoint, directly under its drift details) — the same "uptime monitor" pattern as Better Uptime/UptimeRobot, since the data's actual job is state-over-time, not magnitude.
+
+- `buildDailyHistory` (pure, unit-tested) buckets `check_runs` into one status per UTC day, picking the **worst** status seen that day rather than the last one — a drift that a later retry happens to clear shouldn't disappear from the strip. A day with zero runs is `"no-data"`, never assumed healthy.
+- Day status maps onto a fixed, reserved status palette (`good`/`warning`/`serious`/`critical`, never reused for anything else) — colors alone never carry the meaning: a legend labeling all five states in text sits below the strip regardless of hover state, and hovering or keyboard-focusing any day updates a text detail line with its date, status, and check/drift counts. Tooltips enhance; they never gate — everything is already visible via the always-on legend.
+- The detail page fetches all of an API's endpoints' `check_runs` for the window in one query (`.in("endpoint_id", [...])`), not one query per endpoint.
+
+Verified against real production data (QRDrop's signaling server, 19+ days of real history at the time) — renders correctly, hover/focus interaction confirmed working via Puppeteer against the actual dashboard.
