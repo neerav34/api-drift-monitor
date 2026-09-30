@@ -18,9 +18,14 @@ export default async function DashboardLayout({
     <div className="flex flex-1 flex-col">
       <header className="border-b border-neutral-200 dark:border-neutral-800">
         <div className="mx-auto flex max-w-4xl items-center justify-between px-6 py-4">
-          <Link href="/dashboard" className="text-sm font-semibold tracking-tight">
-            API Drift Monitor
-          </Link>
+          <div className="flex items-center gap-6">
+            <Link href="/dashboard" className="text-sm font-semibold tracking-tight">
+              API Drift Monitor
+            </Link>
+            <Link href="/dashboard/insights" className="text-sm text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100">
+              Insights
+            </Link>
+          </div>
           <div className="flex items-center gap-4 text-sm text-neutral-500">
             <span>{user.email}</span>
             <SignOutButton />
