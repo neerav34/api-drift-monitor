@@ -6,6 +6,9 @@ export default function Home() {
       <header className="mx-auto flex w-full max-w-3xl items-center justify-between px-6 py-6">
         <span className="text-sm font-semibold tracking-tight">API Drift Monitor</span>
         <nav className="flex items-center gap-4 text-sm">
+          <Link href="/demo" className="text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100">
+            Live demo
+          </Link>
           <Link href="/login" className="text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100">
             Log in
           </Link>
@@ -51,12 +54,17 @@ export default function Home() {
           </Card>
         </div>
 
-        <Link
-          href="/signup"
-          className="mt-10 inline-block rounded-md bg-neutral-900 px-5 py-2.5 text-sm font-medium text-white dark:bg-white dark:text-neutral-900"
-        >
-          Get started
-        </Link>
+        <div className="mt-10 flex items-center gap-4">
+          <Link
+            href="/signup"
+            className="inline-block rounded-md bg-neutral-900 px-5 py-2.5 text-sm font-medium text-white dark:bg-white dark:text-neutral-900"
+          >
+            Get started
+          </Link>
+          <Link href="/demo" className="text-sm font-medium underline">
+            See it live, no signup
+          </Link>
+        </div>
       </main>
     </div>
   );

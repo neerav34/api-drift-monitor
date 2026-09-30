@@ -124,3 +124,9 @@ A per-endpoint, last-30-days status strip on the API detail page (one per endpoi
 - The detail page fetches all of an API's endpoints' `check_runs` for the window in one query (`.in("endpoint_id", [...])`), not one query per endpoint.
 
 Verified against real production data (QRDrop's signaling server, 19+ days of real history at the time) — renders correctly, hover/focus interaction confirmed working via Puppeteer against the actual dashboard.
+
+## Public live demo (`app/demo/page.tsx`)
+
+Unauthenticated, read-only, `export const dynamic = "force-dynamic"` (otherwise Next.js would prerender it at build time and freeze the status/history as of the last deploy). Set `DEMO_API_ID` to a real API's id to showcase it — currently QRDrop's signaling server in production. Deliberately selects only non-secret columns (`id, name, base_url, check_mode, is_active` — never `webhook_token` or `auth_header_enc`), reuses `StatusPill` and `CheckHistoryChart` as-is, and shows a "no demo configured" message rather than crashing if the env var is unset. Linked from the landing page as "Live demo" / "See it live, no signup."
+
+Verified against real production data via Puppeteer: renders QRDrop's actual status and history with no console errors, no redirect, and no secret fields anywhere in the HTML.
