@@ -2,7 +2,11 @@ import type { AnySchemaObject } from "ajv";
 import { diffResponseAgainstSchema, type DriftItem } from "../../../lib/drift/diff";
 import { extractEndpointsFromSpec, getResponseSchema } from "../../../lib/drift/openapi";
 import { learnBaselineSchema } from "../../../lib/drift/baseline";
-import { diffMcpSnapshots, type McpToolSnapshot, type McpDriftItem } from "../../../lib/drift/mcp-diff";
+import {
+  diffMcpSnapshots,
+  fetchMcpTools,
+  mcpDriftItemToDriftItem,
+} from "../../../lib/drift/mcp-diff";
 import { buildEndpointUrl } from "../../../lib/http/build-url";
 import type { RawCheckResult } from "../../../lib/checks/process-check-result";
 import type { CheckerConfig } from "./config";
@@ -116,13 +120,25 @@ async function runMcpCheck(
 ): Promise<RawCheckResult[]> {
   const current = await fetchMcpTools(config.baseUrl);
   const previous = state.mcpSnapshot ?? [];
-  const drift = diffMcpSnapshots(previous, current);
   state.mcpSnapshot = current;
 
+  // First-ever check: nothing to diff against yet, so every tool would
+  // otherwise show up as a false "tool_added" drift item. This run
+  // establishes the baseline instead, same as baseline mode's own
+  // first-sample-learns-not-diffs rule.
+  if (previous.length === 0) {
+    return current.map((tool) => ({
+      path: `tool:${tool.name}`,
+      method: "MCP",
+      status: "ok",
+    }));
+  }
+
+  const drift = diffMcpSnapshots(previous, current);
   const toolNames = new Set([...previous.map((t) => t.name), ...current.map((t) => t.name)]);
 
   return [...toolNames].map((name) => {
-    const toolDrift = drift.filter((d) => d.tool === name).map(toDriftItem);
+    const toolDrift = drift.filter((d) => d.tool === name).map(mcpDriftItemToDriftItem);
     return {
       path: `tool:${name}`,
       method: "MCP",
@@ -130,30 +146,6 @@ async function runMcpCheck(
       drift: toolDrift,
     };
   });
-}
-
-async function fetchMcpTools(baseUrl: string): Promise<McpToolSnapshot[]> {
-  const res = await fetch(baseUrl, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list", params: {} }),
-  });
-  if (!res.ok) throw new Error(`MCP tools/list request failed: ${res.status}`);
-  const body = (await res.json()) as { result?: { tools?: McpToolSnapshot[] } };
-  return body.result?.tools ?? [];
-}
-
-function toDriftItem(item: McpDriftItem): DriftItem {
-  const field = item.field ?? item.tool;
-  switch (item.type) {
-    case "tool_removed":
-    case "param_removed":
-      return { type: "missing", field };
-    case "param_type_changed":
-      return { type: "wrongType", field, expected: item.expected, got: item.got };
-    default:
-      return { type: "invalid", field, expected: item.type };
-  }
 }
 
 async function checkOneEndpoint(

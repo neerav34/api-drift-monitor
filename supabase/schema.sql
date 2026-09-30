@@ -20,6 +20,7 @@ create table if not exists apis (
   is_active          boolean not null default true,
   last_seen_at       timestamptz,                          -- updated on every incoming result, powers dead-man's-switch
   last_dead_mans_alert_at timestamptz,                      -- throttles the dead-man's-switch alert to once/day
+  mcp_snapshot       jsonb,                                 -- hosted-mode MCP: last tools/list response, API-level (not per-endpoint)
   created_at         timestamptz not null default now()
 );
 
@@ -62,6 +63,7 @@ create table if not exists drift_ignores (
 -- above only helps a fresh install -- IF NOT EXISTS makes it a no-op once
 -- the table is already live with real data).
 alter table apis add column if not exists alert_email text;
+alter table apis add column if not exists mcp_snapshot jsonb;
 
 create index if not exists idx_endpoints_api_id on endpoints(api_id);
 create index if not exists idx_check_runs_endpoint_id on check_runs(endpoint_id);

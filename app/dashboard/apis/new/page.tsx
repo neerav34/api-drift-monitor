@@ -114,7 +114,7 @@ export default function NewApiPage() {
           >
             <option value="baseline">No spec -- learn a baseline</option>
             <option value="openapi">OpenAPI</option>
-            <option value="mcp">MCP server (self-hosted only for now)</option>
+            <option value="mcp">MCP server (tools/list)</option>
           </select>
         </Field>
 

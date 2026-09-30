@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { runHostedCheck } from "@/lib/checks/run-hosted-check";
+import { runHostedMcpCheck } from "@/lib/checks/run-hosted-mcp-check";
 import { processCheckResult } from "@/lib/checks/process-check-result";
 
 /** Manual "Check Now" button -- hosted mode only. Self-hosted APIs have no
@@ -15,7 +16,9 @@ export async function POST(
 
   const { data: api, error: apiError } = await supabase
     .from("apis")
-    .select("id, name, base_url, spec_url, spec_mode, check_mode, auth_header_enc, github_repo, alert_webhook, alert_email")
+    .select(
+      "id, name, base_url, spec_url, spec_mode, check_mode, auth_header_enc, github_repo, alert_webhook, alert_email, mcp_snapshot"
+    )
     .eq("id", id)
     .maybeSingle();
 
@@ -26,11 +29,18 @@ export async function POST(
       { status: 400 }
     );
   }
+
   if (api.spec_mode === "mcp") {
-    return NextResponse.json(
-      { error: "MCP monitoring is self-hosted-only for now" },
-      { status: 400 }
-    );
+    const { results, newSnapshot } = await runHostedMcpCheck(api);
+    const processed = [];
+    for (const result of results) {
+      processed.push(await processCheckResult(supabase, api, result));
+    }
+    await supabase
+      .from("apis")
+      .update({ mcp_snapshot: newSnapshot, last_seen_at: new Date().toISOString() })
+      .eq("id", id);
+    return NextResponse.json({ checked: processed.length, results: processed });
   }
 
   const { data: endpoints } = await supabase

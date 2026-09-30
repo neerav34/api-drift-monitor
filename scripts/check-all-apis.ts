@@ -1,6 +1,7 @@
 #!/usr/bin/env tsx
 import { createServiceRoleClient } from "../lib/supabase/service-role";
 import { runHostedCheck } from "../lib/checks/run-hosted-check";
+import { runHostedMcpCheck } from "../lib/checks/run-hosted-mcp-check";
 import { processCheckResult } from "../lib/checks/process-check-result";
 import { parseIntervalMs } from "../lib/checks/parse-interval";
 import { sendDeadMansSwitchAlert } from "../lib/alerts/dead-mans-switch";
@@ -22,7 +23,7 @@ async function main() {
   const { data: apis, error } = await supabase
     .from("apis")
     .select(
-      "id, name, base_url, spec_url, spec_mode, check_mode, auth_header_enc, github_repo, alert_webhook, alert_email, check_interval, last_seen_at, last_dead_mans_alert_at"
+      "id, name, base_url, spec_url, spec_mode, check_mode, auth_header_enc, github_repo, alert_webhook, alert_email, check_interval, last_seen_at, last_dead_mans_alert_at, mcp_snapshot"
     )
     .eq("is_active", true);
 
@@ -38,12 +39,25 @@ async function main() {
   for (const api of apis ?? []) {
     if (await checkDeadMansSwitch(supabase, api)) deadMansAlerts++;
 
-    if (api.check_mode !== "hosted" || api.spec_mode === "mcp") continue;
+    if (api.check_mode !== "hosted") continue;
 
     // The outer cron polls frequently (every 15 min); each API's own
     // check_interval decides how often it's actually due for a live check.
     const lastSeenMs = api.last_seen_at ? new Date(api.last_seen_at).getTime() : 0;
     if (Date.now() - lastSeenMs < parseIntervalMs(api.check_interval)) continue;
+
+    if (api.spec_mode === "mcp") {
+      const { results, newSnapshot } = await runHostedMcpCheck(api);
+      for (const result of results) {
+        await processCheckResult(supabase, api, result);
+        checked++;
+      }
+      await supabase
+        .from("apis")
+        .update({ mcp_snapshot: newSnapshot, last_seen_at: new Date().toISOString() })
+        .eq("id", api.id);
+      continue;
+    }
 
     const { data: endpoints } = await supabase
       .from("endpoints")

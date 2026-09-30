@@ -1,3 +1,5 @@
+import type { DriftItem } from "./diff";
+
 /**
  * MCP servers rarely publish OpenAPI-style docs, so there's no external
  * spec to diff against -- instead we snapshot the `tools/list` response on
@@ -109,4 +111,33 @@ function describeParamType(schema?: { type?: string | string[]; enum?: unknown[]
   if (schema.enum) return "enum";
   if (Array.isArray(schema.type)) return schema.type.join("|");
   return schema.type ?? "unknown";
+}
+
+/** Calls an MCP server's JSON-RPC `tools/list` -- shared by the self-hosted
+ * CLI and the hosted-mode checker so both snapshot tools the same way. */
+export async function fetchMcpTools(baseUrl: string): Promise<McpToolSnapshot[]> {
+  const res = await fetch(baseUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list", params: {} }),
+  });
+  if (!res.ok) throw new Error(`MCP tools/list request failed: ${res.status}`);
+  const body = (await res.json()) as { result?: { tools?: McpToolSnapshot[] } };
+  return body.result?.tools ?? [];
+}
+
+/** Maps an MCP-specific drift item onto the generic DriftItem shape the rest
+ * of the pipeline (alerts, LLM summaries, ignore filtering) already knows
+ * how to render, so MCP results don't need their own alert formatting. */
+export function mcpDriftItemToDriftItem(item: McpDriftItem): DriftItem {
+  const field = item.field ?? item.tool;
+  switch (item.type) {
+    case "tool_removed":
+    case "param_removed":
+      return { type: "missing", field };
+    case "param_type_changed":
+      return { type: "wrongType", field, expected: item.expected, got: item.got };
+    default:
+      return { type: "invalid", field, expected: item.type };
+  }
 }
