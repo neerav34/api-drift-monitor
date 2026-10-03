@@ -5,6 +5,7 @@ import { CheckNowButton } from "@/components/check-now-button";
 import { CopyableCode } from "@/components/copyable-code";
 import { IgnoreFieldButton } from "@/components/ignore-field-button";
 import { CheckHistoryChart } from "@/components/check-history-chart";
+import { CollaboratorsSection } from "@/components/collaborators-section";
 import { buildDailyHistory } from "@/lib/history/daily-status";
 
 const HISTORY_DAYS = 30;
@@ -20,8 +21,21 @@ export default async function ApiDetailPage(props: PageProps<"/dashboard/apis/[i
   const { id } = await props.params;
   const supabase = await createClient();
 
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
   const { data: api } = await supabase.from("apis").select("*").eq("id", id).maybeSingle();
   if (!api) notFound();
+
+  const isOwner = user?.id === api.user_id;
+  const { data: collaborators } = isOwner
+    ? await supabase
+        .from("api_collaborators")
+        .select("id, user_id, email")
+        .eq("api_id", id)
+        .order("created_at")
+    : { data: null };
 
   const { data: endpoints } = await supabase
     .from("endpoints")
@@ -62,7 +76,14 @@ export default async function ApiDetailPage(props: PageProps<"/dashboard/apis/[i
     <div className="space-y-8">
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-xl font-semibold">{api.name}</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl font-semibold">{api.name}</h1>
+            {!isOwner && (
+              <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-xs font-medium text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400">
+                Shared with you
+              </span>
+            )}
+          </div>
           <p className="text-sm text-neutral-500">{api.base_url}</p>
         </div>
         <StatusPill
@@ -97,6 +118,10 @@ export default async function ApiDetailPage(props: PageProps<"/dashboard/apis/[i
         <p className="text-sm text-neutral-500">Drop this into a public README:</p>
         <CopyableCode code={badgeMarkdown} />
       </section>
+
+      {isOwner && (
+        <CollaboratorsSection apiId={api.id} collaborators={collaborators ?? []} />
+      )}
 
       <section className="space-y-3">
         <h2 className="text-sm font-semibold">Endpoints</h2>

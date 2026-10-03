@@ -4,9 +4,12 @@ import { StatusPill } from "@/components/status-pill";
 
 export default async function DashboardPage() {
   const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   const { data: apis } = await supabase
     .from("apis")
-    .select("id, name, base_url, check_mode, is_active, endpoints(last_status)")
+    .select("id, name, base_url, check_mode, is_active, user_id, endpoints(last_status)")
     .order("created_at", { ascending: false });
 
   return (
@@ -48,6 +51,11 @@ export default async function DashboardPage() {
                   />
                   {!api.is_active && (
                     <span className="text-neutral-400">Paused</span>
+                  )}
+                  {api.user_id !== user?.id && (
+                    <span className="rounded-full bg-neutral-100 px-2 py-0.5 font-medium text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400">
+                      Shared with you
+                    </span>
                   )}
                 </div>
               </Link>
