@@ -92,8 +92,19 @@ export async function DELETE(
   const { id } = await ctx.params;
   const supabase = await createClient();
 
-  const { error } = await supabase.from("apis").delete().eq("id", id);
+  // .select() turns a delete into an UPDATE-like "return what I touched" --
+  // without it, a DELETE blocked by RLS (e.g. a collaborator, who can only
+  // delete-via-owner) matches zero rows and returns no error, so Postgres
+  // alone can't tell "deleted" from "not allowed to." .select() lets us
+  // check: an empty result means nothing was actually deleted.
+  const { data, error } = await supabase.from("apis").delete().eq("id", id).select("id");
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (!data || data.length === 0) {
+    return NextResponse.json(
+      { error: "Not found, or only the owner can delete this API" },
+      { status: 404 }
+    );
+  }
 
   return NextResponse.json({ deleted: true });
 }

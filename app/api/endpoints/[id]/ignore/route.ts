@@ -58,12 +58,22 @@ export async function DELETE(
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  const { error } = await supabase
+  // .select() so a delete blocked by RLS (no access to this endpoint) can be
+  // told apart from one that actually removed the ignore rule -- see the
+  // same fix on DELETE /api/apis/[id] for the full reasoning.
+  const { data, error } = await supabase
     .from("drift_ignores")
     .delete()
     .eq("endpoint_id", id)
-    .eq("field_path", body.field_path);
+    .eq("field_path", body.field_path)
+    .select("id");
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (!data || data.length === 0) {
+    return NextResponse.json(
+      { error: "Not found, or you don't have access to this endpoint" },
+      { status: 404 }
+    );
+  }
   return NextResponse.json({ ignored: false });
 }
