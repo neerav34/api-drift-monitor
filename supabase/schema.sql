@@ -59,6 +59,22 @@ create table if not exists drift_ignores (
   unique (endpoint_id, field_path)
 );
 
+-- Team support: a collaborator gets the same day-to-day access as the owner
+-- (view, pause/resume, manual check, noise-filter) but can never delete the
+-- api or manage who else has access -- that stays owner-only, enforced both
+-- here (insert/delete policies) and at the application layer.
+create table if not exists api_collaborators (
+  id          uuid primary key default gen_random_uuid(),
+  api_id      uuid not null references apis(id) on delete cascade,
+  user_id     uuid not null references auth.users(id) on delete cascade,
+  email       text not null,          -- denormalized at insert time, so the
+                                       -- UI can list collaborators without a
+                                       -- per-view admin API lookup
+  added_by    uuid not null references auth.users(id),
+  created_at  timestamptz not null default now(),
+  unique (api_id, user_id)
+);
+
 -- Schema evolution for deployments that already exist (the CREATE TABLE
 -- above only helps a fresh install -- IF NOT EXISTS makes it a no-op once
 -- the table is already live with real data).
@@ -70,6 +86,8 @@ create index if not exists idx_check_runs_endpoint_id on check_runs(endpoint_id)
 create index if not exists idx_check_runs_checked_at on check_runs(checked_at desc);
 create index if not exists idx_apis_user_id on apis(user_id);
 create index if not exists idx_drift_ignores_endpoint_id on drift_ignores(endpoint_id);
+create index if not exists idx_api_collaborators_api_id on api_collaborators(api_id);
+create index if not exists idx_api_collaborators_user_id on api_collaborators(user_id);
 
 -- Ingest upserts on (api_id, path, method) -- self-hosted checkers and the
 -- hosted batch checker both discover endpoints as results come in rather
@@ -77,43 +95,148 @@ create index if not exists idx_drift_ignores_endpoint_id on drift_ignores(endpoi
 -- is what makes that upsert race-safe instead of just best-effort.
 create unique index if not exists idx_endpoints_api_path_method on endpoints(api_id, path, method);
 
--- Row Level Security: users can only see/manage their own APIs and everything
--- that hangs off them. The service-role key (used by the ingest endpoint and
--- hosted-mode checker) bypasses RLS entirely, which is why webhook_token auth
--- happens at the application layer for the self-hosted ingest path.
+-- Row Level Security: users can see/manage an API if they own it OR are a
+-- listed collaborator on it, and everything that hangs off it. The
+-- service-role key (used by the ingest endpoint and hosted-mode checker)
+-- bypasses RLS entirely, which is why webhook_token auth happens at the
+-- application layer for the self-hosted ingest path.
 
 alter table apis enable row level security;
 alter table endpoints enable row level security;
 alter table check_runs enable row level security;
 alter table drift_ignores enable row level security;
+alter table api_collaborators enable row level security;
 
-create policy "Users manage their own apis"
-  on apis for all
-  using (auth.uid() = user_id)
+-- Single source of truth for "can the current user use this API at all" --
+-- used by endpoints/check_runs/drift_ignores policies below instead of
+-- repeating the owner-or-collaborator check inline. NOT used by apis' own
+-- policies or api_collaborators' own SELECT policy -- see the note on those
+-- below for why.
+--
+-- MUST be SECURITY DEFINER with search_path locked to '' and every table
+-- reference schema-qualified (standard hardening, so it can't be tricked
+-- into resolving a table from a user-writable schema). Originally this also
+-- ran as SECURITY DEFINER to dodge an RLS recursion between this function
+-- and apis' SELECT policy (apis' policy called this function, which queried
+-- apis, which re-triggered apis' policy) -- that recursion no longer exists
+-- now that apis' own policies don't call this function, but SECURITY DEFINER
+-- stays since endpoints/check_runs/drift_ignores still rely on it being able
+-- to read apis regardless of the caller's own RLS visibility into apis.
+create or replace function has_api_access(target_api_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select exists (
+    select 1 from public.apis
+    where public.apis.id = target_api_id
+      and (
+        public.apis.user_id = auth.uid()
+        or exists (
+          select 1 from public.api_collaborators
+          where public.api_collaborators.api_id = public.apis.id
+            and public.api_collaborators.user_id = auth.uid()
+        )
+      )
+  );
+$$;
+
+-- Narrower than has_api_access: checks ONLY api_collaborators, never apis.
+-- apis' own SELECT/UPDATE policies need a collaborator check, but can't do it
+-- via a plain subquery into api_collaborators -- api_collaborators' own
+-- SELECT policy needs to check apis ownership right back, and two tables
+-- whose policies plainly subquery each other is a structural cycle Postgres
+-- rejects outright ("infinite recursion detected in policy for relation
+-- apis"), independent of any actual runtime short-circuiting. Wrapping one
+-- direction in a SECURITY DEFINER function makes it opaque to that cycle
+-- detection (the planner treats it as a black-box boolean, not as "this also
+-- touches api_collaborators' RLS") while also, as a bonus, meaning the
+-- lookup is never subject to api_collaborators' own policy at all. Querying
+-- ONLY api_collaborators (never apis) also means this is safe to call from
+-- apis' own INSERT/UPDATE ... RETURNING -- it never self-references the
+-- table whose RETURNING row visibility is in question (see has_api_access's
+-- comment above for why that specific case breaks even under SECURITY
+-- DEFINER).
+create or replace function is_api_collaborator(target_api_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select exists (
+    select 1 from public.api_collaborators
+    where public.api_collaborators.api_id = target_api_id
+      and public.api_collaborators.user_id = auth.uid()
+  );
+$$;
+
+create policy "Owners can insert their own apis"
+  on apis for insert
   with check (auth.uid() = user_id);
 
-create policy "Users read/manage endpoints of their own apis"
-  on endpoints for all
-  using (exists (select 1 from apis where apis.id = endpoints.api_id and apis.user_id = auth.uid()))
-  with check (exists (select 1 from apis where apis.id = endpoints.api_id and apis.user_id = auth.uid()));
+create policy "Owners and collaborators can view an api"
+  on apis for select
+  using (auth.uid() = user_id or is_api_collaborator(id));
 
-create policy "Users read check_runs of their own endpoints"
+create policy "Owners and collaborators can update an api"
+  on apis for update
+  using (auth.uid() = user_id or is_api_collaborator(id))
+  with check (auth.uid() = user_id or is_api_collaborator(id));
+
+-- Deliberately owner-only, not has_api_access -- deleting the API (and
+-- everything cascading from it) is a decision only the owner makes.
+create policy "Only owners can delete an api"
+  on apis for delete
+  using (auth.uid() = user_id);
+
+create policy "Owners and collaborators can manage endpoints"
+  on endpoints for all
+  using (has_api_access(api_id))
+  with check (has_api_access(api_id));
+
+create policy "Owners and collaborators can read check_runs"
   on check_runs for select
   using (exists (
     select 1 from endpoints
-    join apis on apis.id = endpoints.api_id
-    where endpoints.id = check_runs.endpoint_id and apis.user_id = auth.uid()
+    where endpoints.id = check_runs.endpoint_id and has_api_access(endpoints.api_id)
   ));
 
-create policy "Users manage drift_ignores of their own endpoints"
+create policy "Owners and collaborators can manage drift_ignores"
   on drift_ignores for all
   using (exists (
     select 1 from endpoints
-    join apis on apis.id = endpoints.api_id
-    where endpoints.id = drift_ignores.endpoint_id and apis.user_id = auth.uid()
+    where endpoints.id = drift_ignores.endpoint_id and has_api_access(endpoints.api_id)
   ))
   with check (exists (
     select 1 from endpoints
-    join apis on apis.id = endpoints.api_id
-    where endpoints.id = drift_ignores.endpoint_id and apis.user_id = auth.uid()
+    where endpoints.id = drift_ignores.endpoint_id and has_api_access(endpoints.api_id)
   ));
+
+-- api_collaborators itself: owners and collaborators can see who has access;
+-- only the owner can grant or revoke it (mirrored at the application layer
+-- in /api/apis/[id]/collaborators, but enforced here too as the real
+-- boundary, not just a UI nicety). Safe to subquery apis directly here (apis
+-- is a different, already-committed table from api_collaborators'
+-- perspective -- no same-statement visibility concern), and safe re:
+-- recursion too: this subquery triggers apis' SELECT policy, which only
+-- calls the opaque is_api_collaborator() function above rather than
+-- subquerying api_collaborators directly, so the cycle terminates instead of
+-- the structural "infinite recursion detected in policy" the planner throws
+-- when two tables' policies plainly subquery each other.
+create policy "Owners and collaborators can see who has access"
+  on api_collaborators for select
+  using (
+    user_id = auth.uid()
+    or exists (select 1 from apis where apis.id = api_collaborators.api_id and apis.user_id = auth.uid())
+  );
+
+create policy "Only owners can add collaborators"
+  on api_collaborators for insert
+  with check (exists (select 1 from apis where apis.id = api_id and apis.user_id = auth.uid()));
+
+create policy "Only owners can remove collaborators"
+  on api_collaborators for delete
+  using (exists (select 1 from apis where apis.id = api_id and apis.user_id = auth.uid()));
