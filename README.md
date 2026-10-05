@@ -2,6 +2,8 @@
 
 A free-to-build, self-hostable-first monitoring layer that alerts you the moment your live API (or MCP server) drifts from its spec — without ever asking you to hand over your production credentials.
 
+**[Live demo](https://api-drift-monitor.vercel.app/demo)** (no signup) · **[npm package](https://www.npmjs.com/package/api-drift-check)**
+
 ## Why
 
 Your API spec (OpenAPI, or an MCP server's tool schema) says one thing. Your live service does another. A checker — running either on your own infra (default) or ours (opt-in) — compares live behavior against the spec on a schedule, and alerts you the moment they diverge.
@@ -127,7 +129,7 @@ Verified against real production data (QRDrop's signaling server, 19+ days of re
 
 ## Public live demo (`app/demo/page.tsx`)
 
-Unauthenticated, read-only, `export const dynamic = "force-dynamic"` (otherwise Next.js would prerender it at build time and freeze the status/history as of the last deploy). Set `DEMO_API_ID` to a real API's id to showcase it — currently QRDrop's signaling server in production. Deliberately selects only non-secret columns (`id, name, base_url, check_mode, is_active` — never `webhook_token` or `auth_header_enc`), reuses `StatusPill` and `CheckHistoryChart` as-is, and shows a "no demo configured" message rather than crashing if the env var is unset. Linked from the landing page as "Live demo" / "See it live, no signup."
+**Live at [api-drift-monitor.vercel.app/demo](https://api-drift-monitor.vercel.app/demo)** — unauthenticated, read-only, `export const dynamic = "force-dynamic"` (otherwise Next.js would prerender it at build time and freeze the status/history as of the last deploy). Set `DEMO_API_ID` to a real API's id to showcase it — currently QRDrop's signaling server in production. Deliberately selects only non-secret columns (`id, name, base_url, check_mode, is_active` — never `webhook_token` or `auth_header_enc`), reuses `StatusPill` and `CheckHistoryChart` as-is, and shows a "no demo configured" message rather than crashing if the env var is unset. Linked from the landing page as "Live demo" / "See it live, no signup."
 
 Verified against real production data via Puppeteer: renders QRDrop's actual status and history with no console errors, no redirect, and no secret fields anywhere in the HTML.
 
